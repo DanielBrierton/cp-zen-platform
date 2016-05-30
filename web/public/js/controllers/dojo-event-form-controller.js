@@ -2,7 +2,7 @@
 (function() {
   'use strict';
 
-  function getEveryTargetWeekdayInDateRange(startDateTime, endDateTime, targetWeekday, eventType) {
+  function getEveryTargetWeekdayInDateRange(startDateTime, endDateTime, sendReminders, reminderHours, targetWeekday, eventType) {
     endDateTime = moment.utc(endDateTime).add(1, 'days');
     var currentDate = startDateTime;
     var dates = [];
@@ -10,10 +10,13 @@
 
     // this function calculates the start time and end time for each recurring event occurrence.
     // the result of this function will be finally saved in the DB
-    function calculateDatesObj(startDateTime, endDateTime){
+    function calculateDatesObj(startDateTime, endDateTime, sendReminders, reminderHours){
       var date = {};
       var utcOffset = moment().utcOffset();
       date.startTime = moment.utc(startDateTime).add(utcOffset, 'minutes').toDate();
+      if (sendReminders && reminderHours) {
+        date.reminderTime = moment.utc(startDateTime).add(utcOffset, 'minutes').subtract(reminderHours, 'hours').toDate();
+      }
       var mEventDate = moment.utc(startDateTime);
       var mEventLastDate = moment.utc(endDateTime).add(utcOffset, 'minutes');
       date.endTime = moment.utc([ mEventDate.get('year'), mEventDate.get('month'), mEventDate.date(),
@@ -22,17 +25,17 @@
     }
 
     if(eventType === 'one-off') {
-      dates.push(calculateDatesObj(currentDate, endDateTime));
+      dates.push(calculateDatesObj(currentDate, endDateTime, sendReminders, reminderHours));
     } else {
       while (currentDate <= endDateTime) {
         currentDate = moment.utc(new Date(currentDate)).toDate();
 
         if (currentDate.getDay() === targetWeekday) {
           if (eventType === 'weekly') {
-            dates.push(calculateDatesObj(currentDate, endDateTime));
+            dates.push(calculateDatesObj(currentDate, endDateTime, sendReminders, reminderHours));
           } else {
             if (!biWeeklyEventSwitch) {
-              dates.push(calculateDatesObj(currentDate, endDateTime));
+              dates.push(calculateDatesObj(currentDate, endDateTime, sendReminders, reminderHours));
               biWeeklyEventSwitch = true;
             } else {
               biWeeklyEventSwitch = false;
@@ -95,6 +98,7 @@
     var now = moment.utc().toDate();
     var defaultEventTime = moment.utc(now).add(2, 'hours').toDate();
     var defaultEventEndTime = moment.utc(now).add(3, 'hours').toDate();
+    var defaultReminderHours = 48;
     $scope.today = moment.utc().toDate();
 	  $scope.ticketTypes = ticketTypes.data || [];
     $scope.ticketTypesTooltip = '';
@@ -129,6 +133,8 @@
     $scope.eventInfo.endTime.setMinutes(0);
     $scope.eventInfo.endTime.setSeconds(0);
 
+    $scope.eventInfo.reminderHours = defaultReminderHours;
+
     $scope.eventInfo.fixedStartDateTime = $scope.eventInfo.date;
     $scope.eventInfo.fixedEndDateTime = $scope.eventInfo.toDate;
 
@@ -146,8 +152,10 @@
 
     $scope.$watch('eventInfo.date', function (date) {
       $scope.eventInfo.fixedStartDateTime = fixEventDates(date, $scope.eventInfo.fixedStartDateTime);
+      $scope.eventInfo.fixedEndDateTime = fixEventDates(date, $scope.eventInfo.fixedEndDateTime);
       $scope.eventInfo.startTime = $scope.eventInfo.fixedStartDateTime;
       $scope.eventInfo.endTime = fixEventDates($scope.eventInfo.fixedStartDateTime, $scope.eventInfo.fixedEndDateTime);
+
     });
 
     $scope.$watch('eventInfo.toDate', function (toDate) {
@@ -503,6 +511,8 @@
           eventInfo.dates = getEveryTargetWeekdayInDateRange(
             eventInfo.fixedStartDateTime,
             eventInfo.fixedEndDateTime,
+            eventInfo.sendReminders,
+            eventInfo.reminderHours,
             $scope.weekdayPicker.selection.id,
             'weekly'
           );
@@ -510,6 +520,8 @@
           eventInfo.dates = getEveryTargetWeekdayInDateRange(
             eventInfo.fixedStartDateTime,
             eventInfo.fixedEndDateTime,
+            eventInfo.sendReminders,
+            eventInfo.reminderHours,
             $scope.weekdayPicker.selection.id,
             'biweekly'
           );
@@ -518,6 +530,8 @@
         eventInfo.dates = getEveryTargetWeekdayInDateRange(
           eventInfo.fixedStartDateTime,
           eventInfo.fixedEndDateTime,
+          eventInfo.sendReminders,
+          eventInfo.reminderHours,
           null,
           'one-off'
         );
@@ -729,6 +743,7 @@
       cdEventsService.load(eventId, function(event) {
         var startTime = _.first(event.dates).startTime || moment.utc().toISOString();
         var endTime = _.last(event.dates).endTime || moment.utc().toISOString();
+        var reminderTime = _.first(event.dates).reminderTime;
 
         var utcOffset = moment().utcOffset();
 
@@ -746,6 +761,11 @@
 
         $scope.eventInfo.fixedStartDateTime = event.startTime;
         $scope.eventInfo.fixedEndDateTime = event.endTime;
+        
+        if (reminderTime) {
+          $scope.eventInfo.sendReminders = true;
+          $scope.eventInfo.reminderHours = moment.duration(moment(startTime).diff(reminderTime)).asHours();
+        }
 
         $scope.eventInfo = _.assign($scope.eventInfo, event);
         $scope.eventInfo.userType = _.where($scope.eventInfo.userTypes, {name: $scope.eventInfo.userType})[0];

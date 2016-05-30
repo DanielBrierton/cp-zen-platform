@@ -303,6 +303,21 @@
           </div>
         </div>
 
+        <div class="form-group form-inline">
+          <div class="checkbox">
+            <input type="checkbox" id="send-reminders" ng-model="eventInfo.sendReminders" />
+            <label for="send-reminders">
+              {@i18n key="Send reminders"/}
+              <span tooltip="{@i18n key="Send out event reminders to attendees in advance of the event."/}" tooltip-placement="right" class="info-button fa fa-info-circle event-tooltip"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" ng-show="eventInfo.sendReminders">
+          <label for="reminderHours">{@i18n key="Hours before event"/}*:</label>
+          <input ng-readonly="pastEvent" placeholder="{@i18n key="Hours"/}" type="number" name="reminderHours" class="form-control" ng-model="eventInfo.reminderHours" ng-value="eventInfo.reminderHours" ng-required="eventInfo.sendReminders" required-message="'{@i18n key="Hours is empty"/}'">
+        </div>
+
         <div class="btn-toolbar">
           <button type="button" class="btn btn-default" ng-click="cancel($event)">{@i18n key="Cancel"/}</button>
           <button ng-if="!pastEvent" type="submit" class="btn btn-default" >{@i18n key="Save Draft"/}</button>
